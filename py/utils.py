@@ -33,6 +33,9 @@ def deep_sizeof(obj, seen=None):
 
     return size
 
+
+# TODO: appears to be binary centric. Perhaps move to utils_experiments_binomial.py
+# If can be generalised move to utils_experiments_shared.py
 def report_accounting_size(binary_accounting):
     #size_bytes = sys.getsizeof(binary_accounting) 
     size_bytes = deep_sizeof(binary_accounting.dict_successes_failures_counter)
