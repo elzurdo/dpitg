@@ -110,9 +110,12 @@ def booleans_to_rope_result(decision_accept, decision_reject_below, decision_rej
     elif decision_reject_above:
         return "above"
 
-def stop_decision_multiple_experiments_multiple_methods(samples, rope_min, rope_max, precision_goal, binary_accounting=None, min_iter=30, viz=False):
+# TODO: rename to stop_decision_multiple_sequences_multiple_methods
+# Also update: methods --> algorithms
+def stop_decision_multiple_sequences_multiple_methods(samples, rope_min, rope_max, precision_goal, binary_accounting=None, min_iter=30, viz=False):
+    # Was called: stop_decision_multiple_experiments_multiple_methods
     # For each method and rope result type creating tally of outcomes
-    method_names = ["pitg", "epitg", "hdi_rope"]
+    method_names = ["pitg", "dpitg", "hdi_rope"]
     n_samples = samples.shape[1]
 
     # stats at sample stop iteration
@@ -184,23 +187,23 @@ def stop_decision_multiple_experiments_multiple_methods(samples, rope_min, rope_
 
                 # update Precision Is The Goal Stop
                 if pitg_stopped is False:
-                    # not applying `break` because we continue for ePiTG
+                    # not applying `break` because we continue for DPiTG
                     if conclusive:
                         rope_result = booleans_to_rope_result(decision_accept, decision_reject_below, decision_reject_above)
                         _update_iteration_tally(method_roperesult_iteration["pitg"][rope_result], iteration)
                     method_stats["pitg"][isample] = iteration_results
-                    pitg_stopped = True  # sample does not continue with PITG (only ePiTG) 
+                    pitg_stopped = True  # sample does not continue with PITG (only DPiTG) 
 
                 # continue with Enhance Precision Is The Goal
                 if conclusive:
                     rope_result = booleans_to_rope_result(decision_accept, decision_reject_below, decision_reject_above)
-                    _update_iteration_tally(method_roperesult_iteration["epitg"][rope_result], iteration)
+                    _update_iteration_tally(method_roperesult_iteration["dpitg"][rope_result], iteration)
 
                     if hdi_rope_stopped is False:
                         _update_iteration_tally(method_roperesult_iteration["hdi_rope"][rope_result], iteration)
                         
                 if conclusive | final_iteration:
-                    method_stats["epitg"][isample] = iteration_results
+                    method_stats["dpitg"][isample] = iteration_results
 
                     if hdi_rope_stopped is False:
                         method_stats["hdi_rope"][isample] = iteration_results
@@ -209,7 +212,7 @@ def stop_decision_multiple_experiments_multiple_methods(samples, rope_min, rope_
                     if final_iteration:
                         if viz:
                             print(f"Sample {isample} at final iteration")
-                            print(method_stats["epitg"][isample])
+                            print(method_stats["dpitg"][isample])
                     break
             
             elif conclusive & (hdi_rope_stopped is False):
@@ -228,8 +231,8 @@ def stop_decision_multiple_experiments_multiple_methods(samples, rope_min, rope_
                     method_stats["hdi_rope"][isample] = iteration_results
                 if isample not in method_stats["pitg"]:
                     method_stats["pitg"][isample] = iteration_results
-                if isample not in method_stats["epitg"]:
-                    method_stats["epitg"][isample] = iteration_results
+                if isample not in method_stats["dpitg"]:
+                    method_stats["dpitg"][isample] = iteration_results
                 break
 
     return method_stats, method_roperesult_iteration
