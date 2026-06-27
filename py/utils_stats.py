@@ -1,6 +1,6 @@
 
 from scipy.optimize import fmin
-from scipy.stats import beta
+from scipy.stats import beta as scipy_beta
 
 CI_FRACTION = 0.95
 
@@ -37,4 +37,4 @@ strained Nelder-Mead optimisation. $F^{-1}(1-\alpha+\ell)-F^{-1}(\ell)$ over $\e
     return distri.ppf([HDIlowTailPr, ci_fraction + HDIlowTailPr])
 
 def successes_failures_to_hdi_ci_limits(a, b, ci_fraction=CI_FRACTION):
-    return HDIofICDF(beta, a=a, b=b, ci_fraction=ci_fraction)
+    return HDIofICDF(scipy_beta, a=a, b=b, ci_fraction=ci_fraction)
