@@ -1,15 +1,23 @@
 import numpy as np
+import pandas as pd
+from IPython.display import display
 
+from utils_viz import (
+    plot_multiple_decision_rates_separate,
+    scatter_stop_iter_sample_rate,
+    viz_sequence_stats,
+    plot_sample_pdf_methods
+)
 from utils_stats import (
     successes_failures_to_hdi_ci_limits
 )
 
 from utils_experiments_shared import (
     stats_dict_to_df,
-    # iteration_counts_to_df,
+    iteration_counts_to_df,
     # report_success_rates,
     # report_success_rates_multiple_algos,
-    # create_decision_correctness_df,
+    create_decision_correctness_df,
 )
 
 SEQUENCE_HANDPICKED = "101101000110010000101111111110010101101110001111110010100110111111110111001111001110011110001010001011110101111110001111111111100000101001001100000001101000100010000000010010111001110100111000010010110011010000101011110011111111011100101011011100100101010011110101001111011100101110010011001010010001001011010101010100111100110011011011101110010100010110011001100101111001111101110101010001101110111100010110101010101010111100001000111011001010101100100110010001101101111100111000010011001000001010110010101101000001100101000110101110010101101000100110100100100110110100101011100001101000111111001001111100100011100011000101001010101110010000110111101111011100111011010010001001001111011100100000100011100000010010111111011110101000110110010001100101011110000001001101111100000001010011001001110001010100000101111100101110011011010111001000011110010011111110011111111100111011010000101110110001100111001000010011101100111000110010100000001101110000110011100111011100101001101010011001010100011000000011001100101100101000001101100111000000101010000110100100111110101101110010000100011101011011001110011100111011101010100101100001101100010111010010101000011000100111111010010111001100001001000110111011001011100100001001011111010011111101111001010000110011010101111001011110100001000100000010000011001110100110100100101000001100110111011011111010100111101111101010001010110010001000110111000101000010001011000100001101111011000000111010011000101001011110111101111010011101010111001111010101111011000110"
@@ -30,6 +38,7 @@ def successes_failures_caculate_hdi_limits(successes, failures):
 
     return hdi_min, hdi_max
 
+# TODO: consider renaming to BINOMIAL_ACCOUNTING.
 class BinaryAccounting():
     def __init__(self):
         self.dict_successes_failures_counter = {}
@@ -110,8 +119,7 @@ def booleans_to_rope_result(decision_accept, decision_reject_below, decision_rej
     elif decision_reject_above:
         return "above"
 
-# TODO: rename to stop_decision_multiple_sequences_multiple_methods
-# Also update: methods --> algorithms
+# TODO: unit tests
 def stop_decision_multiple_sequences_multiple_methods(samples, rope_min, rope_max, precision_goal, binary_accounting=None, min_iter=30, viz=False):
     # Was called: stop_decision_multiple_experiments_multiple_methods
     # For each method and rope result type creating tally of outcomes
@@ -236,3 +244,139 @@ def stop_decision_multiple_sequences_multiple_methods(samples, rope_min, rope_ma
                 break
 
     return method_stats, method_roperesult_iteration
+
+
+# TODO: unit tests
+# TODO: rename success_rate to θ_true.
+class BinomialSimulation():
+    def __init__(self, success_rate=0.5, n_samples = 1500,  n_experiments = 500, seed=42):
+        self.success_rate = success_rate  #0.65  ## the true value # 0.5 + 0.5 * dsuccess_rate
+        self.n_samples = n_samples
+        self.n_experiments = n_experiments
+        self.seed= seed
+
+        self.generate_experiments()
+
+
+    def generate_experiments(self):
+
+        print("Generating synthetic data with parameter values:")
+        print(f"{self.success_rate:0.3}: true success rate")
+        print(f"{self.n_experiments}: experiments")
+        print(f"{self.n_samples}: sample size per experiment")
+        
+        np.random.seed(self.seed)
+        # `experiments` was called `samples` in the original code
+        self.experiments = np.random.binomial(1, self.success_rate, [self.n_experiments, self.n_samples])
+
+# TODO: unit tests
+# TODO: rename success_rate_null to θ_null.
+# TODO: update dsuccess_rate to rope_min and rope_max
+# TODO: update rope_precision_fraction to omega_goal
+class BinomialHypothesis():
+    def __init__(self, success_rate_null=0.5, dsuccess_rate=0.05, rope_precision_fraction=0.8):
+        self.success_rate_null =  success_rate_null  # null hypothesis
+        self.dsuccess_rate = dsuccess_rate  # - ROPE half width
+        self.rope_precision_fraction = rope_precision_fraction # - precision must past this fractionu of ROPE
+
+        self.set_hypothesis_params()
+
+    def set_hypothesis_params(self):
+        self.rope_min = self.success_rate_null - self.dsuccess_rate
+        self.rope_max = self.success_rate_null + self.dsuccess_rate
+
+        # hypothesis: if precision_goal is lower, then PitG has less of
+        # an inconclusiveness problem but at the expense of more trials.
+        self.precision_goal = (2 * self.dsuccess_rate) * self.rope_precision_fraction
+        #precision_goal = (dsuccess_rate) * rope_precision_fraction # 1500 was not enough for 0.04
+        #precision_goal = (1.5 * dsuccess_rate) * rope_precision_fraction # 1500 was not enough for 0.04
+
+
+        print(f"{self.success_rate_null:0.5}: null hypothesis")
+        print(f"{self.rope_min:0.2}: ROPE min")
+        print(f"{self.rope_max:0.2}: ROPE max")
+        print("-" * 20)
+        print(f"{self.precision_goal:0.2}: Precision Goal")
+
+    def run_hypothesis_on_experiments(self, experiments, binary_accounting):
+        self.experiments = experiments
+        self.n_experiments = experiments.shape[0]
+        self.method_stats, self.method_roperesult_iteration  = stop_decision_multiple_sequences_multiple_methods(experiments, self.rope_min, self.rope_max, self.precision_goal, binary_accounting=binary_accounting)
+
+        self.method_df_stats = {method_name: stats_dict_to_df(self.method_stats[method_name]) for method_name in self.method_stats}
+        self.method_df_iteration_counts = {method_name: iteration_counts_to_df(self.method_roperesult_iteration[method_name], self.n_experiments) for method_name in self.method_roperesult_iteration}
+
+        # creating table to summarize results
+        self.experiments_summary()
+
+    def one_experiment_all_iterations(self, iexperiment, binary_accounting=None, viz=True, θ_true=None, xlim = (0.4,0.8), method_names=None):
+        print(self.experiments[iexperiment, :])
+        df_experiment_results = sequence_to_iteration_stats(self.experiments[iexperiment, :], self.precision_goal, self.rope_min, self.rope_max, binary_accounting=binary_accounting, iteration_number=None)
+
+        if viz:
+            self.viz_one_experiment_all_iterations(df_experiment_results, θ_true=θ_true)
+            self.plot_experiment_pdf_methods(iexperiment, xlim=xlim, method_names=method_names)
+
+        return df_experiment_results
+
+    def plot_decision_rates(self, success_rate=None, viz_epitg="separate"):
+        None
+        # TODO: add
+        plot_multiple_decision_rates_separate(self.method_df_iteration_counts, success_rate, self.n_experiments, viz_epitg=viz_epitg, iteration_values=None)
+
+    def plot_stop_iter_sample_rates(self, success_rate=None, title=None):
+        scatter_stop_iter_sample_rate(self.method_df_stats, rope_min=self.rope_min, rope_max=self.rope_max, success_rate_true=success_rate, success_rate_hypothesis=self.success_rate_null, precision_goal=self.precision_goal, title=title)
+
+    def viz_one_experiment_all_iterations(self, df_sample_results, θ_true=None):
+        viz_sequence_stats(df_sample_results, self.precision_goal, self.rope_min, self.rope_max, θ_true=θ_true)
+
+    def plot_experiment_pdf_methods(self, iexperiment, xlim=(0.4,0.8), method_names=None):
+        plot_sample_pdf_methods(self.method_df_stats, iexperiment, self.rope_min, self.rope_max, xlim=xlim, method_names=method_names)
+
+    # TODO: update conditional stats. E.g, only conclusive, only inconclusive, etc.
+    def experiments_summary(self, verbose=1):
+        method_names = ["hdi_rope", "pitg", "dpitg"]
+
+        stat_queries = { "accept": "accept",
+                        "reject": "reject",
+                        "conclusive": "conclusive",
+                        "inconclusive": "inconclusive",
+                        "stop_iter_mean": None,
+                        "stop_iter_std": None,
+                        "success_rate_mean": None,
+                        "success_rate_std": None,
+                        }
+
+        stat_results = {}
+
+        for method_name in method_names:
+            stat_results[method_name] = {}
+
+            sr_stop_iter = self.method_df_stats[method_name]["decision_iteration"].copy()
+            sr_success_rate = self.method_df_stats[method_name]["success_rate"].copy()
+            for stat_name, stat_query in stat_queries.items():
+                if ("_mean" not in stat_name) & ("_std" not in stat_name):
+                    value_ = self.method_df_stats[method_name].query(stat_query).shape[0]
+                    stat_results[method_name][stat_name] = value_ / self.n_experiments
+                else:
+                    if "stop_iter" in stat_name:
+                        sr_aux = sr_stop_iter.copy()
+                    elif "success_rate" in stat_name:
+                        sr_aux = sr_success_rate.copy()
+                    else:
+                        sr_aux = None
+                    
+                    if "_mean" in stat_name:
+                        stat_results[method_name][stat_name]  = sr_aux.mean()
+                    elif "_std" in stat_name:
+                        stat_results[method_name][stat_name]  = sr_aux.std()
+
+        self.df_experiments_summary = pd.DataFrame(stat_results).T
+
+        if verbose:
+            display(self.df_experiments_summary)
+
+    def decision_correctness(self, true_rate):
+        self.df_experiment_correctness = create_decision_correctness_df(
+            self.method_stats, true_rate, self.rope_min, self.rope_max, data_type='binomial'
+        )
