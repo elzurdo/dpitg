@@ -34,6 +34,7 @@ hat_theta_str = r"$\hat{\theta}$"  # was called theta_hat_str
 theta_null_str = r"$\theta_{\rm null}$"
 theta_true_str = r"$\theta_{\rm true}$"
 p_theta_str = r"$p(\theta)$"
+rope_str = r"${\rm ROPE}$"
 delta_rope_str = r"$\Delta_{\rm ROPE}$"
 n_true_str = r"$N_{\rm goal}$"
 n_stop_str = r"$N_{\rm stop}$"
@@ -68,7 +69,7 @@ def plot_grid(with_y=True, with_x=False, alpha=0.3):
 
 FIGURE_PATH_ROOT = "./figures/"
 
-def save_figure(fig, filename, dpi=DPI, bbox_inches="tight"):
+def save_figure(fig, filename=None, dpi=DPI, bbox_inches="tight"):
     if filename is not None:
         filepath_png = f"{FIGURE_PATH_ROOT}png/{filename}_dpi{DPI}.png"
         filepath_tiff = f"{FIGURE_PATH_ROOT}tiff/{filename}_dpi{DPI}.tiff"
@@ -106,13 +107,13 @@ def plot_n_goal_by_parameter(z_star = 1.96, filename=None):
 
 
 
-def viz_sequence_stats(df_sample_results, precision_goal, rope_min, rope_max, θ_true=None):
+def viz_sequence_stats(df_sample_results, precision_goal, rope_min, rope_max, θ_true=None, filename=None):
     # Was called: viz_one_sample_results
     df_conclusive_accept = df_sample_results.query("conclusive").query("accept")
     df_conclusive_reject = df_sample_results.query("conclusive").query("reject")
     df_sample_goal = df_sample_results.query("goal_achieved")
 
-    plt.figure(figsize=(FIG_WIDTH, FIG_HEIGHT))
+    fig = plt.figure(figsize=(FIG_WIDTH, FIG_HEIGHT))
 
     plt.plot(df_sample_results["decision_iteration"], df_sample_results["hdi_min"], color="gray", label=None)
     plt.plot(df_sample_results["decision_iteration"], df_sample_results["hdi_max"], color="gray", label=None)
@@ -148,6 +149,8 @@ def viz_sequence_stats(df_sample_results, precision_goal, rope_min, rope_max, θ
 
     if θ_true is not None:
         plt.title(f"{theta_true_str}={θ_true:0.3f}")
+
+    save_figure(fig, filename)
 
 
 def plot_pdf(sr_experiment_stats, rope_min, rope_max, xlim=None, xtitle=r"success rate $\theta$"):
@@ -209,15 +212,16 @@ def plot_sample_pdf_methods(method_df_stats, isample, rope_min, rope_max, xlim =
     plt.tight_layout()
 
 # TODO: rename viz_epitg to viz_dpitg
-def plot_multiple_decision_rates_separate(method_df_iteration_counts, success_rate, experiments, viz_epitg="separate", iteration_values=None):
-    print("viz_epitg", viz_epitg)
-    plt.figure(figsize=(FIG_WIDTH * 2, FIG_HEIGHT))
+# TODO: rename success_rate to theta_true (or consider removing)
+def plot_multiple_decision_rates_separate(method_df_iteration_counts, success_rate, experiments, viz_epitg="separate", iteration_values=None, filename=None, suptitle=None):
+    fig = plt.figure(figsize=(FIG_WIDTH * 2, FIG_HEIGHT))
     xlabel = "iteration"
 
-    if success_rate is not None:
-        suptitle = f"{theta_true_str} = {success_rate:0.3f}"
-    else:
-        suptitle = None
+    if suptitle is None:
+        if success_rate is not None:
+            suptitle = f"{theta_true_str} = {success_rate:0.3f}"
+        else:
+            suptitle = None
 
     for method_name, df_counts in method_df_iteration_counts.items():
         if iteration_values is None:
@@ -275,12 +279,13 @@ def plot_multiple_decision_rates_separate(method_df_iteration_counts, success_ra
     if suptitle is not None:
         plt.suptitle(suptitle, fontsize=20)
     plt.tight_layout()
+    save_figure(fig, filename)
 
 
 def scatter_stop_iter_sample_rate(method_df_stats, rope_min=None, rope_max=None, 
                                           success_rate_true=None, success_rate_hypothesis=None, 
                                           precision_goal=None, title=None, method_names=None,
-                                          scatter_ratio=3, bins=30, imbalance_cutoff_ratio=3.0):
+                                          scatter_ratio=3, bins=30, imbalance_cutoff_ratio=3.0, filename=None, suptitle=None):
     """
     Creates a 3-panel plot: 
     - Main scatter plot (Top-Right)
@@ -297,11 +302,12 @@ def scatter_stop_iter_sample_rate(method_df_stats, rope_min=None, rope_max=None,
     if method_names is None:
         method_names = ["hdi_rope", "pitg", "dpitg"]
 
-    if success_rate_true:
-        #theta_true_str = r"$\theta_{\rm true}$"
-        title = f" {theta_true_str} = {success_rate_true:0.2f}"
-    else:
-        title = ""
+    if suptitle is None:
+        if success_rate_true:
+            #theta_true_str = r"$\theta_{\rm true}$"
+            title = f" {theta_true_str} = {success_rate_true:0.2f}"
+        else:
+            title = ""
 
     fig = plt.figure(figsize=(FIG_WIDTH * 1.5, FIG_HEIGHT * 1.5))
     
@@ -434,7 +440,11 @@ def scatter_stop_iter_sample_rate(method_df_stats, rope_min=None, rope_max=None,
     # if title is not None:
     #     # Adjust title position to not overlap with top-left empty space if needed
     #     # but suptitle usually handles it well.
-    title += f" ({last_df_len:,} experiments)"
-    plt.suptitle(title, y=0.95)
+    
+    if suptitle is None:
+        title += f" ({last_df_len:,} experiments)"
+        suptitle = title
+    plt.suptitle(suptitle, y=0.95)
+    save_figure(fig, filename)
 
     return fig

@@ -8,7 +8,11 @@ from utils_viz import (
     plot_multiple_decision_rates_separate,
     scatter_stop_iter_sample_rate,
     viz_sequence_stats,
-    plot_sample_pdf_methods
+    plot_sample_pdf_methods,
+    theta_true_str,
+    # theta_null_str,
+    rope_str,
+    ω_goal_str,
 )
 from utils_stats import (
     successes_failures_to_hdi_ci_limits,
@@ -384,13 +388,35 @@ class BinomialHypothesis():
 
         return df_experiment_results
 
-    def plot_decision_rates(self, success_rate=None, viz_epitg="separate"):
-        None
-        # TODO: add
-        plot_multiple_decision_rates_separate(self.method_df_iteration_counts, success_rate, self.n_experiments, viz_epitg=viz_epitg, iteration_values=None)
+    def experiments_suptitle(self, success_rate=None):
+        if success_rate is not None:
+            suptitle = f"{theta_true_str} = {success_rate:0.2f}"
+            #suptitle += f", {theta_null_str} = {self.success_rate_null:0.3f}"
+            suptitle += f", {ω_goal_str} = {self.precision_goal:0.2f}"
+            rope_min_value_str = f"{self.rope_min:0.2f}"
+            rope_max_value_str = f"{self.rope_max:0.2f}"
+            rope_values_str= f"{rope_str} = [{rope_min_value_str}, {rope_max_value_str}]"
+            suptitle += f", {rope_values_str}"
+            suptitle += f", {self.n_experiments:,} experiments"
+        else:
+            suptitle = None
 
-    def plot_stop_iter_sample_rates(self, success_rate=None, title=None):
-        scatter_stop_iter_sample_rate(self.method_df_stats, rope_min=self.rope_min, rope_max=self.rope_max, success_rate_true=success_rate, success_rate_hypothesis=self.success_rate_null, precision_goal=self.precision_goal, title=title)
+        return suptitle
+    
+    def plot_decision_rates(self, success_rate=None, viz_epitg="separate", filename=None):
+        suptitle = self.experiments_suptitle(success_rate=success_rate)
+        plot_multiple_decision_rates_separate(self.method_df_iteration_counts, success_rate,
+                                              self.n_experiments, viz_epitg=viz_epitg,
+                                              iteration_values=None, filename=filename,
+                                              suptitle=suptitle)
+
+    def plot_stop_iter_sample_rates(self, success_rate=None, title=None, filename=None):
+        suptitle = self.experiments_suptitle(success_rate=success_rate)
+        scatter_stop_iter_sample_rate(self.method_df_stats,
+                                      rope_min=self.rope_min, rope_max=self.rope_max,
+                                      success_rate_true=success_rate, success_rate_hypothesis=self.success_rate_null,
+                                      precision_goal=self.precision_goal, title=title,
+                                      filename=filename, suptitle=suptitle)
 
     def viz_one_experiment_all_iterations(self, df_sample_results, θ_true=None):
         viz_sequence_stats(df_sample_results, self.precision_goal, self.rope_min, self.rope_max, θ_true=θ_true)
