@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# BinaryAccounting cache files (can be many MB)
+cache/
+
+# Figures
+*.png
+*.tiff

@@ -12,6 +12,8 @@ from utils_stats import (CI_FRACTION,
                          binomial_rate_ci_width_to_sample_size,
                          )
 
+DPI = 350  # dots per inch for saving figures
+
 FIG_WIDTH = 8
 FIG_HEIGHT = 6
 SMALL_SIZE = 12
@@ -64,7 +66,18 @@ def plot_grid(with_y=True, with_x=False, alpha=0.3):
     else:
         ax.grid(False, axis="x")
 
-def plot_n_goal_by_parameter(z_star = 1.96 ):
+FIGURE_PATH_ROOT = "./figures/"
+
+def save_figure(fig, filename, dpi=DPI, bbox_inches="tight"):
+    if filename is not None:
+        filepath_png = f"{FIGURE_PATH_ROOT}png/{filename}_dpi{DPI}.png"
+        filepath_tiff = f"{FIGURE_PATH_ROOT}tiff/{filename}_dpi{DPI}.tiff"
+        fig.savefig(filepath_png, dpi=DPI)
+        print(f"Saved figure to {filepath_png}")
+        fig.savefig(filepath_tiff, bbox_inches=bbox_inches, dpi=DPI)
+        print(f"Saved figure to {filepath_tiff}")
+
+def plot_n_goal_by_parameter(z_star = 1.96, filename=None):
 
     thetas = np.arange(0.01, 0.99, 0.01)
     goals = [0.1, 0.08, 0.06, 0.04]
@@ -73,8 +86,7 @@ def plot_n_goal_by_parameter(z_star = 1.96 ):
                            for theta in thetas] for goal in goals}
     df_n_stop_goals = pd.DataFrame(n_stop_goals, index=thetas)
 
-    plt.figure(figsize=(1 * FIG_WIDTH, FIG_HEIGHT))
-
+    fig = plt.figure(figsize=(1 * FIG_WIDTH, FIG_HEIGHT))
 
     for idx, goal in enumerate(goals):
         plt.plot(df_n_stop_goals.index, df_n_stop_goals[goal],
@@ -89,6 +101,9 @@ def plot_n_goal_by_parameter(z_star = 1.96 ):
         fontsize=20
     )
     plt.tight_layout()
+    save_figure(fig, filename)
+
+
 
 
 def viz_sequence_stats(df_sample_results, precision_goal, rope_min, rope_max, θ_true=None):
