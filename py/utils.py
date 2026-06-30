@@ -36,6 +36,8 @@ def deep_sizeof(obj, seen=None):
 
 # TODO: appears to be binary centric. Perhaps move to utils_experiments_binomial.py
 # If can be generalised move to utils_experiments_shared.py
+# TODO: update with the new loading mechanism. It's display should not say empty
+# (due to no count data) but rather the actual number of pairs.
 def report_accounting_size(binary_accounting):
     #size_bytes = sys.getsizeof(binary_accounting) 
     size_bytes = deep_sizeof(binary_accounting.dict_successes_failures_counter)
