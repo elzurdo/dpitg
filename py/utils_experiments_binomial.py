@@ -43,10 +43,18 @@ def successes_failures_caculate_hdi_limits(successes, failures, ci_fraction=CI_F
 
 # TODO: consider renaming to BINOMIAL_ACCOUNTING.
 class BinaryAccounting():
-    def __init__(self, ci_fraction=CI_FRACTION):
+    def __init__(self, ci_fraction=CI_FRACTION, filepath=None):
         self.ci_fraction = ci_fraction
         self.dict_successes_failures_counter = {}
         self.dict_successes_failures_hdi_limits = {}
+        if filepath is not None:
+            path = pathlib.Path(filepath)
+            if not path.suffix:
+                path = path.with_suffix(".pkl")
+            self.filepath = path
+        else:
+            self.define_filepath()
+        print(f"Filepath for BinaryAccounting: {self.filepath}")
 
     def successes_failures_to_hdi_limits(self, successes, failures):
         pair = (successes, failures)
@@ -58,18 +66,22 @@ class BinaryAccounting():
             self.dict_successes_failures_counter[pair] = self.dict_successes_failures_counter.get(pair, 0) + 1
 
         return self.dict_successes_failures_hdi_limits[pair]
+    
+    def define_filepath(self):
+        ci_frac_str = f"{self.ci_fraction}".replace(".", "pt")
+        filepath = f"cache/binary_accounting_{ci_frac_str}.pkl"
+        self.filepath = pathlib.Path(filepath)
+        
 
-    def load_or_create(self, filepath):
-        path = pathlib.Path(filepath)
-        if not path.suffix:
-            path = path.with_suffix(".pkl")
-        self.filepath = path
+    def load_or_create(self):
+        path = self.filepath
+
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():
             with open(path, "rb") as f:
                 data = pickle.load(f)
             self.dict_successes_failures_hdi_limits = data["hdi_limits"]
-            print(f"Loaded cache: {len(self.dict_successes_failures_hdi_limits)} entries from {path}")
+            print(f"Loaded cache: {len(self.dict_successes_failures_hdi_limits):,} entries from {path}")
         else:
             print(f"No cache found at {path}. Starting fresh.")
 
@@ -96,7 +108,7 @@ class BinaryAccounting():
         tmp.rename(path)
 
         if entries_new == entries_old:
-            print(f"Cache unchanged ({entries_new} entries). Saved.")
+            print(f"Cache unchanged ({entries_new:,} entries). Saved.")
         else:
             print(f"Cache saved: {entries_new:,} entries to {path}")
 
