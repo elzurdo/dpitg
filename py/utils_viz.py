@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from IPython.display import display
 from scipy.stats import beta as scipy_beta
 
 import matplotlib.gridspec as gridspec
@@ -448,3 +449,188 @@ def scatter_stop_iter_sample_rate(method_df_stats, rope_min=None, rope_max=None,
     save_figure(fig, filename)
 
     return fig
+
+
+METHOD_SHORT = {
+    "hdi_rope": "HDI+ROPE",
+    "pitg": "PitG",
+    "dpitg": "DPitG",
+
+}
+
+ALGO_HATCH = {
+    "hdi_rope": None,
+    "pitg": "/",
+    "dpitg": "\\"
+}
+
+def plot_success_by_truth(algo_stats_df, dsuccess_rate, subset_name = "conclusive", param_null=0.5):
+
+    assert subset_name in ["conclusive", "inconclusive", "overall"]
+
+    if  "conclusive" == subset_name:
+        title = "Conclusive"
+    elif "overall" == subset_name:
+        title = "Conclusive + Inconclusive"
+    elif "inconclusive" == subset_name:
+        title = "Inconclusive"
+
+    truth_values = np.array(algo_stats_df[subset_name]["dpitg"]["param_median"].index.tolist())
+
+    rope_min = param_null - dsuccess_rate
+    rope_max = param_null + dsuccess_rate
+
+    algo_alpha = {
+       "hdi_rope": 0.2,
+        "pitg": 0.5,
+        "dpitg": 0.5     
+    }
+
+    plt.title(title, fontsize=20)
+    for algo_name in METHOD_SHORT.keys():
+        #this_truths = algo_stats_df[subset_name][algo_name].query("param_p25 == param_p25").index.tolist()
+        this_truths = algo_stats_df[subset_name][algo_name].query("count >= 20").index.tolist()
+
+        label = f"{METHOD_SHORT[algo_name]}"
+
+        try:
+            plt.fill_between(
+                this_truths, 
+                algo_stats_df[subset_name][algo_name].loc[this_truths, "param_p25"].astype(float),
+                algo_stats_df[subset_name][algo_name].loc[this_truths,"param_p75"].astype(float),
+                color=ALGO_COLORS[algo_name], 
+                alpha=algo_alpha[algo_name], 
+                label=label,
+                hatch=ALGO_HATCH[algo_name]
+            )
+            
+        except Exception as e:
+            print(f"Error plotting {algo_name}: {e}")
+            df_aux = algo_stats_df[subset_name][algo_name].loc[this_truths]
+            try:
+                df_aux["diff_pcnt"] = (df_aux["param_p75"] - df_aux["param_p25"]) * 100.
+                display(df_aux[["count", "stop_iter_median" ,"param_p25", "param_median","param_p75","diff_pcnt" ]])
+            except:
+                pass
+
+        plt.plot(this_truths, algo_stats_df[subset_name][algo_name].loc[this_truths, "param_p25"], color=ALGO_COLORS[algo_name], alpha=1.)
+        plt.plot(this_truths, algo_stats_df[subset_name][algo_name].loc[this_truths, "param_p75"], color=ALGO_COLORS[algo_name], alpha=1.)
+
+    plt.axhline(rope_min, linestyle=":", color="gray")
+    plt.axhline(rope_max, linestyle=":", color="gray")
+
+    plt.plot(truth_values, truth_values, color="gray", linestyle=None, alpha=1)
+    plt.axvline(x=param_null + dsuccess_rate, color="black", linestyle="--", alpha=0.5)
+    if param_null > 0:
+        plt.axvline(x=param_null - dsuccess_rate, color="black", linestyle="--", alpha=0.5)
+
+    plt.xlabel(r"$\theta_{\rm true}$")
+    plt.ylabel(r"$\hat{\theta}$")
+    plt.legend(title="IQR")
+
+    all_true_vals = algo_stats_df[subset_name][algo_name].index.tolist()
+    dyy = 0.1
+
+
+    plt.grid(alpha=0.3)
+    #plt.ylim(0.4, 0.75)
+    plt.ylim(all_true_vals[0] - dyy, all_true_vals[-1] + dyy)
+
+
+def plot_success_by_truth_diff(algo_stats_df, dsuccess_rate, subset_name="conclusive", success_metrics=["param_median"], param_null=0.5):
+    METRIC_LINESTYLE = {"param_median": None, "param_mean": "--"}
+
+    truth_values = np.array(algo_stats_df[subset_name]["dpitg"]["param_median"].index.tolist())
+
+    for success_metric in success_metrics:
+        for algo_name in METHOD_SHORT.keys():
+            result_diff = algo_stats_df[subset_name][algo_name][success_metric] - truth_values
+
+            label = f"{METHOD_SHORT[algo_name]}"
+            plt.plot(truth_values, result_diff, color=ALGO_COLORS[algo_name], linestyle=METRIC_LINESTYLE[success_metric], alpha=0.7, label=label, linewidth=ALGO_LINEWIDTH[algo_name])
+
+
+    plt.axhline(y=0, color="black", linestyle=":", alpha=0.5)
+    plt.xlabel(r"$\theta_{\rm true}$")
+    plt.ylabel(r"$\hat{\theta} - \theta_{\rm true}$")
+    plt.legend(title="median - true")
+    plt.axvline(x=param_null + dsuccess_rate, color="black", linestyle="--", alpha=0.5)
+    if param_null > 0.5:
+        plt.axvline(x=param_null - dsuccess_rate, color="black", linestyle="--", alpha=0.5)
+
+    plt.axhline(-dsuccess_rate, linestyle=":", color="gray")
+    plt.axhline(dsuccess_rate, linestyle=":", color="gray")
+    #plt.ylim(-dsuccess_rate,dsuccess_rate)
+    plt.ylim(-0.1, 0.1)
+
+    plt.grid(alpha=0.3)
+
+def plot_success_by_truth_absolute_and_diff(algo_stats_df, dsuccess_rate, subset_name="conclusive",
+                                            param_null=0.5, ncols = 2, nrows = 1, xlim=(0.498, 0.802)):
+    plt.figure(figsize=(ncols * FIG_WIDTH, nrows * FIG_HEIGHT))
+
+    # === Absolute Conclusive===
+    plt.subplot(nrows, ncols, 1)
+    plot_success_by_truth(algo_stats_df, dsuccess_rate, subset_name = subset_name, param_null=param_null)
+    plt.title(r"$\hat{\theta}(\theta_{\rm true})$")
+    plt.xlim(xlim)
+
+    # === Relative Conclusive===
+    plt.subplot(nrows, ncols, 2)
+    plot_success_by_truth_diff(algo_stats_df, dsuccess_rate, subset_name=subset_name, success_metrics=["param_median"], param_null=param_null)
+    plt.title(r"$\hat{\theta}(\theta_{\rm true}) - \theta_{\rm true}$")
+    plt.xlim(xlim)
+
+    plt.suptitle(f"Bias Stats of {subset_name.capitalize()} Experiments", fontsize=20)
+
+    plt.tight_layout()
+
+
+def plot_stop_and_conclusive_ratios(algo_stats_df, subset_name = "overall", param_null=0.5,
+                                    dsuccess_rate=0.1, viz_mean=False, goal_val=0.08, xlim=(0.498, 0.702), denominator_type="goal"):
+    
+    
+    dpitg_ = algo_stats_df[subset_name]["dpitg"]
+    pitg_ = algo_stats_df[subset_name]["pitg"]
+    theta_trues = dpitg_["stop_iter_median"].index.tolist()
+    n_goals = np.array([binomial_rate_ci_width_to_sample_size(true_rate, goal_val) for true_rate in theta_trues])
+    
+
+    # stop ratio
+    if denominator_type == "pitg":
+        stop_ratio = dpitg_["stop_iter_median"] / pitg_["stop_iter_median"]
+        stop_ratio_mean = dpitg_["stop_iter_mean"] / pitg_["stop_iter_mean"]
+        stop_ratio_p25 = dpitg_["stop_iter_p25"] / pitg_["stop_iter_p25"]
+        stop_ratio_p75 = dpitg_["stop_iter_p75"] / pitg_["stop_iter_p75"]
+    elif denominator_type == "goal":
+        print("Using goal as denominator")
+        stop_ratio = dpitg_["stop_iter_median"] / n_goals
+        stop_ratio_mean = dpitg_["stop_iter_mean"] / n_goals
+        stop_ratio_p25 = dpitg_["stop_iter_p25"] / n_goals
+        stop_ratio_p75 = dpitg_["stop_iter_p75"] / n_goals
+
+
+    # conclusive ratio
+    conclusive_ratio = algo_stats_df["overall"]["dpitg"]["conclusive_mean"] / algo_stats_df["overall"]["pitg"]["conclusive_mean"]
+
+    n_stop_str = r"$N_{\rm goal}$" #(\theta_{\rm true},\omega)$"
+    n_stop_epitg_str = r"$N_{\rm DPitG}$"
+    n_stop_pitg_str = r"$N_{\rm PitG}$"
+    ratio_str = f"{n_stop_epitg_str}/{n_stop_pitg_str}"
+    plt.plot(stop_ratio, color="purple", linewidth=1, linestyle="-.", label=f"{ratio_str} Median")
+    plt.fill_between(dpitg_.index, stop_ratio_p25, stop_ratio_p75, color="purple", alpha=0.2, label=f"{ratio_str} IQR")
+    if viz_mean:
+        plt.plot(stop_ratio_mean, color="gray", linewidth=0.5, label=f"{ratio_str} Mean")
+    plt.plot(conclusive_ratio, color="purple", linewidth=2, label="Conclusiveness DPitG/PitG")
+    plt.ylim(0,None)
+    plt.grid(alpha=0.3)
+    plt.xlabel(r"$\theta_{\rm true}$")
+    plt.ylabel("Ratio")
+    plt.xlim(xlim)
+
+    # TODO: generalise plotting boundaries for binary vs. continuous
+    plt.axvline(x=param_null + dsuccess_rate, color="black", linestyle="--", alpha=0.5, label=r"ROPE$_{\rm max}$")
+    if param_null > 0.5:
+        plt.axvline(x=param_null - dsuccess_rate, color="black", linestyle="--", alpha=0.5, label=r"ROPE$_{\rm min}$")
+    plt.legend()
+    plt.title(f"{theta_null_str}={param_null}, {delta_rope_str}={2 * dsuccess_rate}, {ω_goal_str}={goal_val:0.2f}")
