@@ -3,6 +3,7 @@ import pathlib
 import numpy as np
 import pandas as pd
 from IPython.display import display
+from typing import Dict, List, Union
 
 from scipy.stats import binomtest
 
@@ -125,6 +126,40 @@ class BinaryAccounting():
         path.parent.mkdir(parents=True, exist_ok=True)
         self.filepath = path
         self.save()
+
+
+class BinaryPvalueAccounting():
+    """Memoised binomial p-value calculator.
+
+    Caches p-values keyed by (successes, n) so that repeated calls with the
+    same counts — common when running many experiments of the same length —
+    avoid redundant `binomtest` evaluations.
+
+    Parameters
+    ----------
+    success_rate_null : float
+        Null-hypothesis success rate (fixed for the lifetime of the object).
+    alternative : str
+        'two-sided', 'greater', or 'less' (fixed for the lifetime of the object).
+    """
+
+    def __init__(self, success_rate_null: float = 0.5, alternative: str = 'two-sided'):
+        self.success_rate_null = success_rate_null
+        self.alternative = alternative
+        self.dict_successes_n_pvalue = {}   # type: Dict[tuple, float]
+        self.dict_successes_n_counter = {}  # type: Dict[tuple, int]
+
+    def successes_n_to_pvalue(self, successes: int, n: int) -> float:
+        pair = (successes, n)
+        if pair not in self.dict_successes_n_pvalue:
+            self.dict_successes_n_pvalue[pair] = binomtest(
+                successes, n=n, p=self.success_rate_null, alternative=self.alternative
+            ).pvalue
+            self.dict_successes_n_counter[pair] = 1
+        else:
+            self.dict_successes_n_counter[pair] += 1
+
+        return self.dict_successes_n_pvalue[pair]
 
 
 def sequence_to_iteration_stats(samples, ω_goal, rope_min, rope_max, iteration_number=None, binary_accounting=None):
@@ -509,3 +544,79 @@ def sequence_to_sequential_pvalues(sequence, success_rate_null=0.5, alternative=
     p_values = np.array(p_values)
 
     return p_values
+
+
+# --- NHST ---
+
+# TODO: raname: 'samples' --> 'sequences' or 'experiments'
+# TODO: unit test
+# TODO: update input variable names.
+def stop_decision_multiple_experiments_nhst(
+    experiments: np.ndarray,
+    p_value_thresh: float = 0.05,
+    success_rate_null: float = 0.5,
+    alternative: str = 'two-sided',
+    binary_pvalue_accounting: BinaryPvalueAccounting = None,
+) -> Dict[str, Union[Dict[int, int], Dict[str, List]]]:
+    """Run sequential NHST (optional stopping) on multiple binary experiments.
+
+    For each experiment (row), iterates through observations computing a binomial
+    test p-value at each step. Stops early if p-value <= p_value_thresh.
+
+    Parameters
+    ----------
+    experiments : np.ndarray
+        2D array of shape (num_experiments, sequence_length) with binary (0/1) values.
+        Each row is one experiment; each column is one observation.
+    p_value_thresh : float
+        Significance threshold for early stopping (default 0.05).
+    success_rate_null : float
+        Null hypothesis success rate (default 0.5).
+    alternative : str
+        Direction of the test: 'two-sided', 'greater', or 'less'.
+    binary_pvalue_accounting : BinaryPvalueAccounting, optional
+        If provided, p-values are looked up from its cache before computing.
+        Must be constructed with matching success_rate_null and alternative.
+        Speeds up runs with many experiments by avoiding redundant binomtest calls.
+
+    Returns
+    -------
+    dict with keys:
+        "iteration_stopping_on_or_prior" : dict[int, int]
+            Maps iteration (1-indexed) to count of experiments that stopped
+            at or before that iteration.
+        "experiment_stop_results" : dict[str, list]
+            Lists of 'successes', 'trials', and 'p_value' per experiment
+            (at the stopping point, or at the final iteration if no early stop).
+    """
+    n_observations = experiments.shape[1]
+
+    experiment_stop_results = {'successes': [], 'trials': [], 'p_value': []}  # type: Dict[str, List]
+    iteration_stopping_on_or_prior = {iteration: 0 for iteration in range(1, n_observations + 1)}  # type: Dict[int, int]
+
+    for sequence in experiments:
+        successes = 0
+        this_iteration = 0
+        for toss in sequence:
+            successes += toss
+            this_iteration += 1
+
+            if binary_pvalue_accounting is not None:
+                p_value = binary_pvalue_accounting.successes_n_to_pvalue(successes, this_iteration)
+            else:
+                p_value = binomtest(successes, n=this_iteration, p=success_rate_null, alternative=alternative).pvalue
+
+            if p_value <= p_value_thresh:
+                for iteration in range(this_iteration, n_observations+1):
+                    iteration_stopping_on_or_prior[iteration] += 1
+                    
+                break
+        experiment_stop_results['successes'].append(successes)
+        experiment_stop_results['trials'].append(this_iteration)
+        experiment_stop_results['p_value'].append(p_value)
+
+
+    return {
+        "iteration_stopping_on_or_prior": iteration_stopping_on_or_prior,
+        "experiment_stop_results": experiment_stop_results,
+    }

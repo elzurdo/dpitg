@@ -849,3 +849,31 @@ def plot_stop_iterations_by_truth_two_panel(
     plt.suptitle("Stop Iteration of Conclusive Experiments", fontsize=20)
     plt.tight_layout()
     save_figure(plt.gcf(), filename)
+
+def plot_decision_rates_nhst(n_experiments, iteration_stopping_on_or_prior, fpr=None, success_rate_null=0.5, success_rate_true=0.5):
+    msize = 5
+    fpr_str = r"$\alpha_{\rm FPR}$"
+    xlabel = "iteration"
+    ylabel = f"proportion of {n_experiments:,} experiments"
+    title = f"{theta_true_str} = {success_rate_true:0.2f}, {theta_null_str} = {success_rate_null:0.2f}, {fpr_str}={fpr:0.2f}" if fpr is not None else f"{theta_true_str} = {success_rate_true:0.2f}, {theta_null_str} = {success_rate_null:0.2f}"
+    # theta_null_str = r"$\theta_{\rm null}$"
+
+    sr_iteration_stopping_on_or_prior = pd.Series(iteration_stopping_on_or_prior)
+    sr_nhst_reject = sr_iteration_stopping_on_or_prior / n_experiments
+
+    plt.plot(sr_nhst_reject.index, sr_nhst_reject + 0.01, alpha=0.7, color="red", linewidth=3, label=f"reject {theta_null_str}")
+    plt.plot(sr_nhst_reject.index, 1. - sr_nhst_reject, alpha=0.7, color="gray", linewidth=3, linestyle='--', label="not reject / inconclusive")
+
+    plt.legend()
+    plt.xscale('log')
+
+    
+    if fpr is not None:
+        plt.axhline(y=fpr, color="gray", linestyle='-.', alpha=0.3, label=f"{fpr_str}={fpr:0.2f}")
+        last_ = list(iteration_stopping_on_or_prior.keys())[-1]
+        x_annotate = last_ * 0.1 if last_ > 10 else last_ * 0.5
+        plt.annotate(f"{fpr_str}={fpr:0.2f}", xy=(x_annotate, fpr + 0.02), color="black", alpha=0.7)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.grid(alpha=0.3, axis='y')
