@@ -141,13 +141,75 @@ class BinaryPvalueAccounting():
         Null-hypothesis success rate (fixed for the lifetime of the object).
     alternative : str
         'two-sided', 'greater', or 'less' (fixed for the lifetime of the object).
+    filepath : str or None
+        Path to the pickle cache file. Auto-generated if None.
     """
 
-    def __init__(self, success_rate_null: float = 0.5, alternative: str = 'two-sided'):
+    def __init__(self, success_rate_null: float = 0.5, alternative: str = 'two-sided', filepath=None):
         self.success_rate_null = success_rate_null
         self.alternative = alternative
         self.dict_successes_n_pvalue = {}   # type: Dict[tuple, float]
         self.dict_successes_n_counter = {}  # type: Dict[tuple, int]
+        if filepath is not None:
+            path = pathlib.Path(filepath)
+            if not path.suffix:
+                path = path.with_suffix(".pkl")
+            self.filepath = path
+        else:
+            self.define_filepath()
+        print(f"Filepath for BinaryPvalueAccounting: {self.filepath}")
+
+    def define_filepath(self):
+        sr_null_str = f"{self.success_rate_null}".replace(".", "pt")
+        alt_str = self.alternative.replace("-", "_")
+        filepath = f"cache/binary_pvalue_accounting_{sr_null_str}_{alt_str}.pkl"
+        self.filepath = pathlib.Path(filepath)
+
+    def load_or_create(self):
+        path = self.filepath
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            with open(path, "rb") as f:
+                data = pickle.load(f)
+            self.dict_successes_n_pvalue = data["pvalues"]
+            print(f"Loaded cache: {len(self.dict_successes_n_pvalue):,} entries from {path}")
+        else:
+            print(f"No cache found at {path}. Starting fresh.")
+
+    def save(self):
+        path = self.filepath
+        entries_new = len(self.dict_successes_n_pvalue)
+        entries_old = 0
+        if path.exists():
+            with open(path, "rb") as f:
+                data = pickle.load(f)
+            entries_old = len(data["pvalues"])
+
+        if entries_new < entries_old:
+            print(f"Warning: new cache has {entries_new} entries; existing file has {entries_old} entries.")
+            answer = input("Overwrite with smaller cache? [y/N] ").strip().lower()
+            if answer != "y":
+                print("Save aborted.")
+                return
+
+        payload = {"version": 1, "pvalues": self.dict_successes_n_pvalue}
+        tmp = path.with_suffix(".pkl.tmp")
+        with open(tmp, "wb") as f:
+            pickle.dump(payload, f)
+        tmp.rename(path)
+
+        if entries_new == entries_old:
+            print(f"Cache unchanged ({entries_new:,} entries). Saved.")
+        else:
+            print(f"Cache saved: {entries_new:,} entries to {path}")
+
+    def save_as(self, filepath):
+        path = pathlib.Path(filepath)
+        if not path.suffix:
+            path = path.with_suffix(".pkl")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.filepath = path
+        self.save()
 
     def successes_n_to_pvalue(self, successes: int, n: int) -> float:
         pair = (successes, n)
@@ -157,7 +219,7 @@ class BinaryPvalueAccounting():
             ).pvalue
             self.dict_successes_n_counter[pair] = 1
         else:
-            self.dict_successes_n_counter[pair] += 1
+            self.dict_successes_n_counter[pair] = self.dict_successes_n_counter.get(pair, 0) + 1
 
         return self.dict_successes_n_pvalue[pair]
 
