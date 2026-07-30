@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 from IPython.display import display
 
+from scipy.stats import binomtest
+
 from utils_viz import (
     plot_multiple_decision_rates_separate,
     scatter_stop_iter_sample_rate,
@@ -493,3 +495,17 @@ def run_simulations_and_analysis_report(binary_accounting: BinaryAccounting,
     df_stats = report_success_rates_multiple_algos(hypothesis.method_df_stats.copy(), data_type='binomial', viz=viz)
 
     return {"synth": synth, "hypothesis": hypothesis, "df_stats": df_stats}
+
+
+def sequence_to_sequential_pvalues(sequence, success_rate_null=0.5, alternative='two-sided'):
+    assert alternative in ['two-sided', 'greater', 'less'], "alternative must be one of 'two-sided', 'greater', or 'less'"
+
+    p_values = []
+
+    for idx, successes in enumerate(sequence.cumsum()):
+        p_value = binomtest(successes, n=idx + 1, p=success_rate_null, alternative=alternative).pvalue
+        p_values.append(p_value)
+
+    p_values = np.array(p_values)
+
+    return p_values
