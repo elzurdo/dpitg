@@ -174,7 +174,7 @@ def plot_pdf(sr_experiment_stats, rope_min, rope_max, xlim=None, xtitle=r"succes
     plt.fill_between(pp_hdi, pdf_hdi, color="purple", alpha=0.2, label=label_hdi)
     plot_vhlines_lines(vertical=rope_min, label='ROPE', horizontal=None, linestyle="--")
     plot_vhlines_lines(vertical=rope_max, horizontal=None, linestyle="--")
-    plt.legend()
+    plt.legend(framealpha=1)
 
     if xtitle is not None:
         plt.xlabel(xtitle)
@@ -186,14 +186,14 @@ def plot_pdf(sr_experiment_stats, rope_min, rope_max, xlim=None, xtitle=r"succes
         plt.xlim([rope_min - 0.1, rope_max + 0.1])
 
 
-def plot_sample_pdf_methods(method_df_stats, isample, rope_min, rope_max, xlim = (0.2, 0.6), method_names=None):
+def plot_sample_pdf_methods(method_df_stats, isample, rope_min, rope_max, xlim = (0.2, 0.6), method_names=None, filename=None):
 
     if method_names is None:
         method_names = list(method_df_stats.keys())
 
     ncols, nrows = 1, len(method_names)
 
-    plt.subplots(nrows, ncols, figsize=(FIG_WIDTH, 1.2* FIG_HEIGHT))
+    fig, ax = plt.subplots(nrows, ncols, figsize=(FIG_WIDTH, 1.2* FIG_HEIGHT))
 
     for imethod, method_name in enumerate(method_names):
         experiment_stats = method_df_stats[method_name].loc[isample]
@@ -211,6 +211,7 @@ def plot_sample_pdf_methods(method_df_stats, isample, rope_min, rope_max, xlim =
 
     #plt.suptitle(f"Outcomes depending on Stop Criterion", fontsize=18)
     plt.tight_layout()
+    save_figure(fig, filename)
 
 # TODO: rename viz_epitg to viz_dpitg
 # TODO: rename success_rate to theta_true (or consider removing)
@@ -566,7 +567,7 @@ def plot_success_by_truth_diff(algo_stats_df, dsuccess_rate, subset_name="conclu
     plt.grid(alpha=0.3)
 
 def plot_success_by_truth_absolute_and_diff(algo_stats_df, dsuccess_rate, subset_name="conclusive",
-                                            param_null=0.5, ncols = 2, nrows = 1, xlim=(0.498, 0.802)):
+                                            param_null=0.5, ncols = 2, nrows = 1, xlim=(0.498, 0.802), filename=None):
     plt.figure(figsize=(ncols * FIG_WIDTH, nrows * FIG_HEIGHT))
 
     # === Absolute Conclusive===
@@ -585,9 +586,12 @@ def plot_success_by_truth_absolute_and_diff(algo_stats_df, dsuccess_rate, subset
 
     plt.tight_layout()
 
+    save_figure(plt.gcf(), filename)
+
 
 def plot_stop_and_conclusive_ratios(algo_stats_df, subset_name = "overall", param_null=0.5,
-                                    dsuccess_rate=0.1, viz_mean=False, goal_val=0.08, xlim=(0.498, 0.702), denominator_type="goal"):
+                                    dsuccess_rate=0.1, viz_mean=False, goal_val=0.08, xlim=(0.498, 0.702),
+                                    denominator_type="goal", filename=None):
     
     
     dpitg_ = algo_stats_df[subset_name]["dpitg"]
@@ -632,5 +636,216 @@ def plot_stop_and_conclusive_ratios(algo_stats_df, subset_name = "overall", para
     plt.axvline(x=param_null + dsuccess_rate, color="black", linestyle="--", alpha=0.5, label=r"ROPE$_{\rm max}$")
     if param_null > 0.5:
         plt.axvline(x=param_null - dsuccess_rate, color="black", linestyle="--", alpha=0.5, label=r"ROPE$_{\rm min}$")
+    plt.legend(framealpha=1)
+    #title = f"{theta_null_str}={param_null}, {delta_rope_str}={2 * dsuccess_rate}, {ω_goal_str}={goal_val:0.2f}"
+    title = f"{theta_null_str}={param_null}, ROPE=[{param_null - dsuccess_rate}, {param_null + dsuccess_rate}], {ω_goal_str}={goal_val:0.2f}"
+    plt.title(title, fontsize=20)
+
+    save_figure(plt.gcf(), filename)
+
+
+def plot_conclusiveness_decisions_and_correctness_rates(algo_stats_df, df_correctness_rates,
+                                                        dsuccess_rate, method_names=None,
+                                                        n_experiments=None, subset_name = "overall",
+                                                        param_null=0.5, xlim=(0.498, 0.702), ylim=(0,1), filename=None):
+    ylabel = f"Fraction of all {n_experiments:,} Experiments" if n_experiments is not None else "Fraction of all Experiments"
+
+    if method_names is None:
+        method_names = list(METHOD_SHORT.keys())
+
+    plt.figure(figsize=(3 * FIG_WIDTH, FIG_HEIGHT))
+
+    # Conclusive Rates
+    plt.subplot(1, 3, 1)
+    for algo_name in METHOD_SHORT:
+        plt.plot(algo_stats_df[subset_name][algo_name]["conclusive_mean"],
+        color=ALGO_COLORS[algo_name], label=METHOD_SHORT[algo_name], linewidth=ALGO_LINEWIDTH[algo_name])
+
+    plt.grid(alpha=0.3)
+    plt.xlabel(r"$\theta_{\rm true}$")
     plt.legend()
-    plt.title(f"{theta_null_str}={param_null}, {delta_rope_str}={2 * dsuccess_rate}, {ω_goal_str}={goal_val:0.2f}")
+    plt.axvline(x=param_null + dsuccess_rate, color="black", linestyle="--", alpha=0.5)
+    if param_null > 0.5:
+        plt.axvline(x=param_null - dsuccess_rate, color="black", linestyle="--", alpha=0.5)
+
+    plt.title("Conclusive Rates = Acceptence + Rejection")
+    plt.ylabel(ylabel)
+    plt.xlim(xlim)
+    plt.ylim(ylim)
+
+    # Acceptence + Rejection Rates
+    plt.subplot(1, 3, 2)
+    for algo_name in METHOD_SHORT:
+        plt.plot(algo_stats_df[subset_name][algo_name]["accept_mean"],
+        color=ALGO_COLORS[algo_name], label=METHOD_SHORT[algo_name], linewidth=ALGO_LINEWIDTH[algo_name])
+
+        plt.plot(algo_stats_df[subset_name][algo_name]["reject_mean"],
+            color=ALGO_COLORS[algo_name], linewidth=ALGO_LINEWIDTH[algo_name], linestyle="-.")
+
+    plt.grid(alpha=0.3)
+    plt.xlabel(r"$\theta_{\rm true}$")
+    plt.ylabel(ylabel)
+    plt.title("Acceptence (solid), Rejection (dashed)")
+    plt.legend()
+    plt.axvline(x=param_null + dsuccess_rate, color="black", linestyle="--", alpha=0.5)
+    if param_null > 0.5:
+        plt.axvline(x=param_null - dsuccess_rate, color="black", linestyle="--", alpha=0.5)
+
+    plt.xlim(xlim)
+    plt.ylim(ylim)
+
+    # Correctness Rates
+    plt.subplot(1, 3, 3)
+    for algo_name in method_names:
+        plt.plot(df_correctness_rates[f"{algo_name}_decision_correct"], color=ALGO_COLORS[algo_name], label=f"{METHOD_SHORT[algo_name]}", linewidth=ALGO_LINEWIDTH[algo_name])
+
+    plt.xlim(xlim)
+    plt.ylim(ylim)
+    plt.grid(alpha=0.3)
+    plt.legend()
+
+    plt.xlabel(r"$\theta_{\rm true}$")
+    plt.axvline(x=param_null + dsuccess_rate, color="black", linestyle="--", alpha=0.5)
+    if param_null > 0.5:
+        plt.axvline(x=param_null - dsuccess_rate, color="black", linestyle="--", alpha=0.5)
+    plt.axhline(y=0.5, color="gray", linestyle=":", alpha=0.5)
+
+    plt.title("Accuracy")
+    plt.ylabel(ylabel)
+    plt.xlim(xlim)
+    plt.ylim(ylim)
+
+    plt.tight_layout()
+
+    save_figure(plt.gcf(), filename)
+
+def plot_stop_iterations_by_truth(algo_stats_df, dsuccess_rate, subset_name = "overall", param_null=0.5, ylim=(0,1500), xlim=(0.498, 0.652), precision_goal=0.08):
+
+    algos_viz = list( METHOD_SHORT.keys())
+    nrows = len(algos_viz)
+    plt.figure(figsize=(FIG_WIDTH, FIG_HEIGHT))
+
+
+    for iplot, algo_name in enumerate(algos_viz): #  ["pitg", "epitg"]:
+        plt.subplot(nrows, 1, iplot + 1)
+
+        df_plot = algo_stats_df[subset_name][algo_name].query("count >= 20")
+
+        plt.plot(df_plot["param_mean"],
+                 df_plot["stop_iter_mean"],
+                 color=ALGO_COLORS[algo_name], label="mean",
+                 linewidth=ALGO_LINEWIDTH[algo_name])
+        
+        plt.fill_between(df_plot.index.tolist(),
+                         df_plot["stop_iter_p25"].astype(float),
+                         df_plot["stop_iter_p75"].astype(float),
+                         color=ALGO_COLORS[algo_name], alpha=0.2, label="IQR")
+
+        if iplot == 0:
+            label_ntruths = f"{n_true_str}({theta_true_str}|{ω_goal_str}={precision_goal:0.2f})"
+        else:
+            label_ntruths = None
+        n_truths = [binomial_rate_ci_width_to_sample_size(true_rate, precision_goal) for true_rate in df_plot.index.tolist()]
+        plt.plot(df_plot.index.tolist(), n_truths, color="orange", linestyle=":", label=label_ntruths)
+
+        plt.subplot(nrows, 1, iplot + 1)
+        plt.axvline(x=param_null + dsuccess_rate, color="black", linestyle="--", alpha=0.5)
+        if param_null > 0.5:
+            plt.axvline(x=param_null - dsuccess_rate, color="black", linestyle="--", alpha=0.5)
+
+        if iplot == len(algos_viz) - 1:
+            plt.xlabel(theta_true_str)
+        
+        plt.ylabel(n_stop_str)
+        plt.legend(title=METHOD_SHORT[algo_name], loc="upper right", fontsize=10, bbox_to_anchor=(1.3, 1))
+        plt.grid(alpha=0.3)
+        plt.ylim(ylim)
+        plt.xlim(xlim)
+
+    plt.suptitle(f"Stop Iteration {n_stop_str}({theta_true_str}|{theta_null_str}={param_null},{ω_goal_str}={precision_goal:0.2f}) of {subset_name.capitalize() if subset_name is not 'overall' else 'All'} Experiments")
+    plt.tight_layout()
+
+
+def plot_stop_iterations_by_truth_two_panel(
+        algo_stats_df_1, algo_stats_df_2,
+        dsuccess_rate_1, dsuccess_rate_2,
+        param_null_1=0.5, param_null_2=0.5,
+        precision_goal_1=0.08, precision_goal_2=0.08,
+        xlim_1=(0.498, 0.652), xlim_2=(0.498, 0.652),
+        ylim=(0, 1500),
+        subset_name="overall",
+        average_name="mean",
+        filename=None
+        ):
+
+    algos_viz = list(METHOD_SHORT.keys())
+    nrows = len(algos_viz)
+    ncols = 2
+    plt.figure(figsize=(FIG_WIDTH * 2, FIG_HEIGHT))
+
+    panels = [
+        (algo_stats_df_1, dsuccess_rate_1, param_null_1, precision_goal_1, xlim_1),
+        (algo_stats_df_2, dsuccess_rate_2, param_null_2, precision_goal_2, xlim_2),
+    ]
+
+    subset_label = "All" if subset_name == "overall" else subset_name.capitalize()
+
+    for icol, (algo_stats_df, dsuccess_rate, param_null, precision_goal, xlim) in enumerate(panels):
+        for iplot, algo_name in enumerate(algos_viz):
+            subplot_idx = iplot * ncols + icol + 1
+            plt.subplot(nrows, ncols, subplot_idx)
+
+            df_plot = algo_stats_df[subset_name][algo_name].query("count >= 20")
+            
+            df_plot_low = algo_stats_df_1[subset_name][algo_name].query("count < 20")
+
+            if df_plot_low.shape[0] > 0:
+                print(f"Warning: {subset_name} rows with count < 20 for {METHOD_SHORT[algo_name]} in {subset_label} subset. These will be excluded from the plot.")
+                display(df_plot_low.shape)
+
+            theta_true_values = df_plot.index.tolist()
+            
+            plt.plot(theta_true_values,
+                     df_plot[f"stop_iter_{average_name}"],
+                     color=ALGO_COLORS[algo_name], label=average_name,
+                     linewidth=ALGO_LINEWIDTH[algo_name])
+
+            plt.fill_between(theta_true_values,
+                             df_plot["stop_iter_p25"].astype(float),
+                             df_plot["stop_iter_p75"].astype(float),
+                             color=ALGO_COLORS[algo_name], alpha=0.2, label="IQR")
+
+            if iplot == 0:
+                label_ntruths = f"{n_true_str}({theta_true_str}|{ω_goal_str}={precision_goal:0.2f})"
+            else:
+                label_ntruths = None
+            if icol == 0:
+                this_param_null = float(param_null_1)
+            else:
+                this_param_null = float(param_null_2)
+            n_null = binomial_rate_ci_width_to_sample_size(this_param_null, precision_goal)
+            n_truths = [binomial_rate_ci_width_to_sample_size(true_rate, precision_goal) for true_rate in df_plot.index.tolist()]
+            plt.plot(theta_true_values, n_truths, color="orange", linestyle=":", label=label_ntruths)
+
+            plt.axhline(y=n_null, color="black", linestyle="--", alpha=0.2)
+            n_null_str = r"$N_{\rm goal}(\theta_{\rm null})$"
+            plt.annotate(f"{n_null_str}={n_null:0.0f}", xy=(xlim[-1] - 0.15, n_null+ 20), color="black", alpha=0.6, fontsize=10)
+            plt.axvline(x=this_param_null + dsuccess_rate, color="black", linestyle="--", alpha=0.5)
+            if this_param_null > 0.5:
+                plt.axvline(x=this_param_null - dsuccess_rate, color="black", linestyle="--", alpha=0.5)
+
+            if iplot == len(algos_viz) - 1:
+                plt.xlabel(theta_true_str)
+
+            plt.ylabel(n_stop_str)
+            plt.legend(title=METHOD_SHORT[algo_name], loc="upper right", fontsize=10, bbox_to_anchor=(1.3, 1), framealpha=1)
+            plt.grid(alpha=0.3)
+            plt.ylim(ylim)
+            plt.xlim(xlim)
+
+            if iplot == 0:
+                plt.title(f"{n_stop_str}({theta_true_str}|{theta_null_str}={param_null},{ω_goal_str}={precision_goal:0.2f})")
+
+    plt.suptitle("Stop Iteration of Conclusive Experiments", fontsize=20)
+    plt.tight_layout()
+    save_figure(plt.gcf(), filename)
