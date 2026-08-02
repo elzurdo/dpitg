@@ -554,7 +554,7 @@ def plot_success_by_truth_diff(algo_stats_df, dsuccess_rate, subset_name="conclu
     plt.axhline(y=0, color="black", linestyle=":", alpha=0.5)
     plt.xlabel(r"$\theta_{\rm true}$")
     plt.ylabel(r"$\hat{\theta} - \theta_{\rm true}$")
-    plt.legend(title="median - true")
+    plt.legend(title="median - true", framealpha=1)
     plt.axvline(x=param_null + dsuccess_rate, color="black", linestyle="--", alpha=0.5)
     if param_null > 0.5:
         plt.axvline(x=param_null - dsuccess_rate, color="black", linestyle="--", alpha=0.5)
@@ -850,7 +850,7 @@ def plot_stop_iterations_by_truth_two_panel(
     plt.tight_layout()
     save_figure(plt.gcf(), filename)
 
-def plot_decision_rates_nhst(n_experiments, iteration_stopping_on_or_prior, fpr=None, success_rate_null=0.5, success_rate_true=0.5):
+def plot_decision_rates_nhst(n_experiments, iteration_stopping_on_or_prior, fpr=None, success_rate_null=0.5, success_rate_true=0.5, filename=None):
     msize = 5
     fpr_str = r"$\alpha_{\rm FPR}$"
     xlabel = "iteration"
@@ -877,3 +877,4 @@ def plot_decision_rates_nhst(n_experiments, iteration_stopping_on_or_prior, fpr=
     plt.ylabel(ylabel)
     plt.title(title)
     plt.grid(alpha=0.3, axis='y')
+    save_figure(plt.gcf(), filename)

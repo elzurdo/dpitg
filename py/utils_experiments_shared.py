@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 
+from utils_stats import binomial_rate_ci_width_to_sample_size
+
 SEED = 42
 
 def stats_dict_to_df(method_stats, data_type='binomial'):
@@ -345,3 +347,45 @@ def get_correctness_stats_per_truth(sims_hypo_results):
     return {"df_inconclusive_rates": df_inconclusive_rates,
             "df_correctness_rates": df_correctness_rates,
             "df_correctness_rates_pitg_inconclusive": df_correctness_rates_pitg_inconclusive}
+
+def get_ωgoal_sensitivity_results(ωgoal_to_experiments, fair_coin_rate):
+    fair_ωgoal_results = {}
+
+    for ωgoal in ωgoal_to_experiments.keys():
+        pitg_conclusiveness = ωgoal_to_experiments[ωgoal]['df_stats'].loc[("pitg", "overall")]["conclusive_mean"]
+        dpitg_conclusiveness = ωgoal_to_experiments[ωgoal]['df_stats'].loc[("dpitg", "overall")]["conclusive_mean"]
+        conclusiveness_ratio = dpitg_conclusiveness / pitg_conclusiveness if pitg_conclusiveness > 0 else np.inf
+
+        if pitg_conclusiveness > 0:
+            pitg_stop_iter_p25 = ωgoal_to_experiments[ωgoal]['df_stats'].loc[("pitg", "conclusive")]["stop_iter_p25"]
+            pitg_stop_iter_p75 = ωgoal_to_experiments[ωgoal]['df_stats'].loc[("pitg", "conclusive")]["stop_iter_p75"]
+            pitg_stop_iter_median = ωgoal_to_experiments[ωgoal]['df_stats'].loc[("pitg", "conclusive")]["stop_iter_median"]
+            pitg_stop_iter_mean = ωgoal_to_experiments[ωgoal]['df_stats'].loc[("pitg", "conclusive")]["stop_iter_mean"]
+        else:
+            pitg_stop_iter_p25 = np.nan
+            pitg_stop_iter_p75 = np.nan
+            pitg_stop_iter_median = np.nan
+            pitg_stop_iter_mean = np.nan
+        
+        dpitg_stop_iter_p25 = ωgoal_to_experiments[ωgoal]['df_stats'].loc[("dpitg", "conclusive")]["stop_iter_p25"]
+        dpitg_stop_iter_p75 = ωgoal_to_experiments[ωgoal]['df_stats'].loc[("dpitg", "conclusive")]["stop_iter_p75"]
+        dpitg_stop_iter_median = ωgoal_to_experiments[ωgoal]['df_stats'].loc[("dpitg", "conclusive")]["stop_iter_median"]
+        dpitg_stop_iter_mean = ωgoal_to_experiments[ωgoal]['df_stats'].loc[("dpitg", "conclusive")]["stop_iter_mean"]
+
+        fair_ωgoal_results[ωgoal] = {
+            "ngoal": binomial_rate_ci_width_to_sample_size(fair_coin_rate, ωgoal),
+            "pitg_conclusiveness": pitg_conclusiveness,
+            "dpitg_conclusiveness": dpitg_conclusiveness,
+            "conclusiveness_ratio": conclusiveness_ratio,
+            "pitg_stop_iter_p25": pitg_stop_iter_p25,
+            "pitg_stop_iter_p75": pitg_stop_iter_p75,
+            "pitg_stop_iter_iqr": pitg_stop_iter_p75 - pitg_stop_iter_p25,
+            "pitg_stop_iter_median": pitg_stop_iter_median,
+            "pitg_stop_iter_mean": pitg_stop_iter_mean,
+            "dpitg_stop_iter_p25": dpitg_stop_iter_p25,
+            "dpitg_stop_iter_p75": dpitg_stop_iter_p75,
+            "dpitg_stop_iter_iqr": dpitg_stop_iter_p75 - dpitg_stop_iter_p25,
+            "dpitg_stop_iter_median": dpitg_stop_iter_median,
+            "dpitg_stop_iter_mean": dpitg_stop_iter_mean,
+        }
+    return pd.DataFrame(fair_ωgoal_results).T.sort_index()
